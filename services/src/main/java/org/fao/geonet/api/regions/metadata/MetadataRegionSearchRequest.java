@@ -48,6 +48,7 @@ import org.fao.geonet.kernel.search.spatial.SpatialIndexWriter;
 import org.fao.geonet.lib.Lib;
 import org.fao.geonet.services.Utils;
 import org.fao.geonet.api.regions.MetadataRegion;
+import org.fao.geonet.util.GMLParsers;
 import org.fao.geonet.utils.Log;
 import org.fao.geonet.utils.Xml;
 import org.geotools.geometry.jts.JTS;
@@ -71,7 +72,6 @@ public class MetadataRegionSearchRequest extends Request {
 
     public static final String PREFIX = "metadata:";
     private static final FindByNodeName EXTENT_FINDER = new FindByNodeName("EX_BoundingPolygon", "EX_GeographicBoundingBox", "polygon");
-    private final Parser[] parsers;
     ServiceContext context;
     private List<? extends MetadataRegionFinder> regionFinders = Lists.newArrayList(
         new FindRegionByXPath(), new FindRegionByGmlId(), new FindRegionByEditRef());
@@ -79,9 +79,8 @@ public class MetadataRegionSearchRequest extends Request {
     private String label;
     private GeometryFactory factory;
 
-    public MetadataRegionSearchRequest(ServiceContext context, Parser[] parsers, GeometryFactory factory) {
+    public MetadataRegionSearchRequest(ServiceContext context, GeometryFactory factory) {
         this.context = context;
-        this.parsers = parsers;
         this.factory = factory;
     }
 
@@ -173,7 +172,7 @@ public class MetadataRegionSearchRequest extends Request {
         Element metadata = findMetadata(id, false);
         if (metadata != null) {
             Path schemaDir = getSchemaDir(id);
-            MultiPolygon geom = SpatialIndexWriter.getSpatialExtent(schemaDir, metadata, parsers,
+            MultiPolygon geom = SpatialIndexWriter.getSpatialExtent(schemaDir, metadata, GMLParsers.create(),
                 new SpatialExtentErrorHandler());
             MetadataRegion region = new MetadataRegion(id, null, geom);
             regions.add(region);
@@ -210,10 +209,11 @@ public class MetadataRegionSearchRequest extends Request {
         Geometry geometry = null;
         if ("polygon".equals(extentObj.getName())) {
             String gml = Xml.getString(extentObj);
-            geometry = SpatialIndexWriter.parseGml(parsers[0], gml);
+            geometry = SpatialIndexWriter.parseGml(getParser(extentObj), gml);
         } else if ("EX_BoundingPolygon".equals(extentObj.getName())) {
-            String gml = Xml.getString(extentObj.getChild("polygon", Geonet.Namespaces.GMD));
-            geometry = SpatialIndexWriter.parseGml(parsers[0], gml);
+            Element polygon = extentObj.getChild("polygon", Geonet.Namespaces.GMD);
+            String gml = Xml.getString(polygon);
+            geometry = SpatialIndexWriter.parseGml(getParser(polygon), gml);
         } else if ("EX_GeographicBoundingBox".equals(extentObj.getName())) {
             double minx = Double.parseDouble(extentObj.getChild("westBoundLongitude", Geonet.Namespaces.GMD).getChildText("Decimal", Geonet.Namespaces.GCO));
             double maxx = Double.parseDouble(extentObj.getChild("eastBoundLongitude", Geonet.Namespaces.GMD).getChildText("Decimal", Geonet.Namespaces.GCO));
@@ -231,6 +231,17 @@ public class MetadataRegionSearchRequest extends Request {
         } else {
             return null;
         }
+    }
+
+    private Parser getParser(Element polygon) {
+        Parser[] parsers_ = GMLParsers.create();
+        Parser parser = parsers_[0];
+        try {
+            if (((Element) polygon.getChildren().get(0)).getNamespace().equals(Geonet.Namespaces.GML32)) {
+                parser = parsers_[1]; // geotools gml3.2 parser
+            }
+        } catch (Exception e) {}
+        return parser;
     }
 
     private Element findMetadata(Id id, boolean includeEditData) throws Exception {

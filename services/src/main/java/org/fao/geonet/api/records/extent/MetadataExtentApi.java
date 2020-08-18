@@ -23,32 +23,20 @@
 
 package org.fao.geonet.api.records.extent;
 
-import com.google.common.base.Optional;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
 import jeeves.server.context.ServiceContext;
-import jeeves.server.dispatchers.ServiceManager;
 import jeeves.services.ReadWriteController;
-import org.fao.geonet.ApplicationContextHolder;
 import org.fao.geonet.api.API;
-import org.fao.geonet.api.ApiParams;
 import org.fao.geonet.api.ApiUtils;
 import org.fao.geonet.api.regions.MetadataRegionDAO;
-import org.fao.geonet.constants.Params;
 import org.fao.geonet.domain.AbstractMetadata;
 import org.fao.geonet.exceptions.BadParameterEx;
-import org.fao.geonet.kernel.datamanager.IMetadataManager;
-import org.fao.geonet.kernel.region.Region;
-import org.fao.geonet.kernel.region.RegionsDAO;
 import org.fao.geonet.kernel.region.Request;
-import org.locationtech.jts.geom.Envelope;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.MultiValueMap;
@@ -56,22 +44,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.NativeWebRequest;
 import springfox.documentation.annotations.ApiIgnore;
 
 import javax.imageio.ImageIO;
 import javax.servlet.http.HttpServletRequest;
-import java.awt.*;
-import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 
-import static org.fao.geonet.api.ApiParams.*;
+import static org.fao.geonet.api.ApiParams.API_CLASS_RECORD_OPS;
+import static org.fao.geonet.api.ApiParams.API_CLASS_RECORD_TAG;
+import static org.fao.geonet.api.ApiParams.API_PARAM_RECORD_UUID;
 
 @RequestMapping(value = {
     "/{portal}/api/records",
@@ -93,16 +76,13 @@ public class MetadataExtentApi {
     public static final String HEIGHT_PARAM = "height";
     public static final String BACKGROUND_PARAM = "background";
     public static final String SETTING_BACKGROUND = "settings";
+    public static final String WIDTH_AND_HEIGHT_BOTH_DEFINED_MESSAGE =
+        String.format("Only one of %s and %s can be defined currently.  Future versions may support this but it is not supported at the moment", WIDTH_PARAM, HEIGHT_PARAM);
+    public static final String WIDTH_AND_HEIGHT_BOTH_MISSING_MESSAGE =
+        String.format("One of $s or $s parameters must be included in the request", WIDTH_PARAM, HEIGHT_PARAM);
 
     @Autowired
-    IMetadataManager metadataManager;
-
-    @Autowired
-    private ServiceManager serviceManager;
-
-    public static AffineTransform worldToScreenTransform(Envelope mapExtent, Dimension screenSize) {
-        return MapRenderer.worldToScreenTransform(mapExtent, screenSize);
-    }
+    private MetadataRegionDAO metadataRegionDAO;
 
     @ApiOperation(
         value = "Get record extents as image",
@@ -143,43 +123,39 @@ public class MetadataExtentApi {
         @ApiParam(value = "(optional) Stroke color with format RED,GREEN,BLUE,ALPHA")
         @RequestParam(value = "", required = false, defaultValue = "0,0,0,255")
         String strokeColor,
+        @ApiParam(value = "(optional) restrict display to one extent given its order of appearence")
+        @RequestParam(value = "", required = false)
+        Integer extentOrderOfAppearence,
         @ApiIgnore
             NativeWebRequest nativeWebRequest,
         @ApiIgnore
             HttpServletRequest request) throws Exception {
+
         AbstractMetadata metadata = ApiUtils.canViewRecord(metadataUuid, request);
         ServiceContext context = ApiUtils.createServiceContext(request);
 
         if (width != null && height != null) {
-            throw new BadParameterEx(
-                WIDTH_PARAM,
-                "Only one of "
-                    + WIDTH_PARAM
-                    + " and "
-                    + HEIGHT_PARAM
-                    + " can be defined currently.  Future versions may support this but it is not supported at the moment");
+            throw new BadParameterEx(WIDTH_PARAM, WIDTH_AND_HEIGHT_BOTH_DEFINED_MESSAGE);
         }
 
         if (width == null && height == null) {
-            throw new BadParameterEx(WIDTH_PARAM, "One of " + WIDTH_PARAM + " or " + HEIGHT_PARAM
-                + " parameters must be included in the request");
-
+            throw new BadParameterEx(WIDTH_PARAM, WIDTH_AND_HEIGHT_BOTH_MISSING_MESSAGE);
         }
 
-        String outputFileName = metadataUuid + "-extent.png";
-        String regionId = "metadata:@id" + metadata.getId();
-
-        MetadataRegionDAO dao = ApplicationContextHolder.get().getBean(MetadataRegionDAO.class);
-
-        final Request searchRequest = dao.createSearchRequest(context);
-        searchRequest.id(regionId);
-        Optional<Long> lastModifiedOption = searchRequest.getLastModified();
-        if (lastModifiedOption.isPresent()) {
-            final Long lastModified = lastModifiedOption.get();
-            if (lastModified != null && nativeWebRequest.checkNotModified(lastModified)) {
-                return null;
-            }
+        String regionId;
+        if (extentOrderOfAppearence == null) {
+            regionId = String.format("metadata:@id%s", metadata.getId());
+        } else {
+            regionId = String.format(
+                "metadata:@id%s:@xpath*//gmd:extent[%d]//*/gmd:EX_BoundingPolygon | *//gmd:extent[%d][not(descendant::*[name() = 'gmd:EX_BoundingPolygon'])]//*/gmd:EX_GeographicBoundingBox",
+                metadata.getId(), extentOrderOfAppearence, extentOrderOfAppearence);
         }
+
+        Request searchRequest = metadataRegionDAO.createSearchRequest(context).id(regionId);
+        if (searchRequest.getLastModified().isPresent() && nativeWebRequest.checkNotModified(searchRequest.getLastModified().get())) {
+            return null;
+        }
+
         MapRenderer renderer = new MapRenderer(context);
         BufferedImage image = renderer.render(
             regionId, srs, width, height, background,
@@ -187,12 +163,14 @@ public class MetadataExtentApi {
             fillColor,
             strokeColor);
 
-        if (image == null) return null;
+        if (image == null) {
+            return null;
+        }
 
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream();) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ImageIO.write(image, "png", out);
             MultiValueMap<String, String> headers = new HttpHeaders();
-            headers.add("Content-Disposition", "inline; filename=\"" + outputFileName + "\"");
+            headers.add("Content-Disposition", String.format("inline; filename=\"%s-extent.png\"", metadataUuid));
             headers.add("Cache-Control", "no-cache");
             headers.add("Content-Type", "image/png");
             return new HttpEntity<>(out.toByteArray(), headers);
