@@ -14,6 +14,9 @@
                 version="2.0"
                 exclude-result-prefixes="#all">
 
+  <xsl:param name="output" as="xs:string" select="'not-pdf'"/>
+
+
   <xsl:function name="geonet:updateUrlPlaceholder" as="xs:string">
     <xsl:param name="url" as="xs:string"/>
     <xsl:param name="node" as="xs:string"/>
@@ -73,6 +76,7 @@
                   <li>
                     <a href="{$appUrl}">
                       <xsl:if test="not($isLogoInHeader)">
+                        @@@@@@@@@@@@@@<xsl:value-of select="$output"></xsl:value-of>@@@@@@@@@@@@@
                         <img class="gn-logo"
                              alt="{$i18n/siteLogo}"
                              src="{/root/gui/nodeUrl}../images/logos/{$env//system/site/siteId}.png"/>
