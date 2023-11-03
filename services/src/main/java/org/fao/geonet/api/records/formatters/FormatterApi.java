@@ -114,6 +114,9 @@ public class FormatterApi extends AbstractFormatService implements ApplicationLi
     @Autowired
     IsoLanguagesMapper isoLanguagesMapper;
 
+    @VisibleForTesting
+    ResponseWriter writer = new ResponseWriter();
+
     /**
      * Map (canonical path to formatter dir -> Element containing all xml files in Formatter
      * bundle's loc directory)
@@ -311,7 +314,7 @@ public class FormatterApi extends AbstractFormatService implements ApplicationLi
             if (!skipPopularityBool && approved) {
                 context.getBean(DataManager.class).increasePopularity(context, String.valueOf(metadata.getId()));
             }
-            writeOutResponse(context, metadataUuid,
+            writer.writeOutResponse(context, metadataUuid,
                 isoLanguagesMapper.iso639_2T_to_iso639_2B(locale.getISO3Language()),
                 request.getNativeResponse(HttpServletResponse.class), formatType, bytes);
         }
@@ -375,7 +378,7 @@ public class FormatterApi extends AbstractFormatService implements ApplicationLi
         final String formattedMetadata = result.one().format(result.two());
         byte[] bytes = formattedMetadata.getBytes(Constants.CHARSET);
 
-        writeOutResponse(context, "", lang, request.getNativeResponse(HttpServletResponse.class), formatType, bytes);
+        writer.writeOutResponse(context, "", lang, request.getNativeResponse(HttpServletResponse.class), formatType, bytes);
     }
 
     /**
@@ -475,24 +478,47 @@ public class FormatterApi extends AbstractFormatService implements ApplicationLi
                 context.getBean(DataManager.class).increasePopularity(context, resolvedId);
             }
 
-            writeOutResponse(context, resolvedId, lang, request.getNativeResponse(HttpServletResponse.class), formatType, bytes);
+            writer.writeOutResponse(context, resolvedId, lang, request.getNativeResponse(HttpServletResponse.class), formatType, bytes);
         }
     }
 
-    private void writeOutResponse(ServiceContext context, String metadataUuid, String lang, HttpServletResponse response, FormatType formatType, byte[] formattedMetadata) throws Exception {
-        response.setContentType(formatType.contentType);
-        String filename = "metadata-" + metadataUuid + "." + formatType;
-        response.addHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
-        response.setStatus(HttpServletResponse.SC_OK);
-        if (formatType == FormatType.pdf) {
-            writerAsPDF(context, response, formattedMetadata, lang);
-        } else {
-            response.setCharacterEncoding(Constants.ENCODING);
+    static class ResponseWriter {
+
+        void writeOutResponse(ServiceContext context, String metadataUuid, String lang, HttpServletResponse response, FormatType formatType, byte[] formattedMetadata) throws Exception {
             response.setContentType(formatType.contentType);
-            response.setContentLength(formattedMetadata.length);
-            response.setHeader("Cache-Control", "no-cache");
-            response.getOutputStream().write(formattedMetadata);
+            String filename = "metadata-" + metadataUuid + "." + formatType;
+            response.addHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
+            response.setStatus(HttpServletResponse.SC_OK);
+            if (formatType == FormatType.pdf) {
+                writerAsPDF(context, response, formattedMetadata, lang);
+            } else {
+                response.setCharacterEncoding(Constants.ENCODING);
+                response.setContentType(formatType.contentType);
+                response.setContentLength(formattedMetadata.length);
+                response.setHeader("Cache-Control", "no-cache");
+                response.getOutputStream().write(formattedMetadata);
+            }
         }
+
+        private void writerAsPDF(ServiceContext context, HttpServletResponse response, byte[] bytes, String lang) throws IOException, com.lowagie.text.DocumentException {
+            final String htmlContent = new String(bytes, Constants.CHARSET);
+            try {
+                XslUtil.setNoScript();
+                ITextRenderer renderer = new ITextRenderer();
+                String siteUrl = context.getBean(SettingManager.class).getSiteURL(lang);
+                MapRenderer mapRenderer = new MapRenderer(context);
+                renderer.getSharedContext().setReplacedElementFactory(new ImageReplacedElementFactory(siteUrl.replace("/" + lang + "/", "/eng/"), renderer.getSharedContext()
+                    .getReplacedElementFactory(), mapRenderer));
+                renderer.getSharedContext().setDotsPerPixel(13);
+                renderer.setDocumentFromString(htmlContent, siteUrl);
+                renderer.layout();
+                renderer.createPDF(response.getOutputStream());
+            } catch (final Exception e) {
+                Log.error(Geonet.FORMATTER, "Error converting formatter output to a file: " + htmlContent, e);
+                throw e;
+            }
+        }
+
     }
 
     private boolean hasNonStandardParameters(NativeWebRequest request) {
@@ -535,24 +561,6 @@ public class FormatterApi extends AbstractFormatService implements ApplicationLi
         return new String(ByteStreams.toByteArray(execute.getBody()), Constants.CHARSET);
     }
 
-    private void writerAsPDF(ServiceContext context, HttpServletResponse response, byte[] bytes, String lang) throws IOException, com.lowagie.text.DocumentException {
-        final String htmlContent = new String(bytes, Constants.CHARSET);
-        try {
-            XslUtil.setNoScript();
-            ITextRenderer renderer = new ITextRenderer();
-            String siteUrl = context.getBean(SettingManager.class).getSiteURL(lang);
-            MapRenderer mapRenderer = new MapRenderer(context);
-            renderer.getSharedContext().setReplacedElementFactory(new ImageReplacedElementFactory(siteUrl.replace("/" + lang + "/", "/eng/"), renderer.getSharedContext()
-                .getReplacedElementFactory(), mapRenderer));
-            renderer.getSharedContext().setDotsPerPixel(13);
-            renderer.setDocumentFromString(htmlContent, siteUrl);
-            renderer.layout();
-            renderer.createPDF(response.getOutputStream());
-        } catch (final Exception e) {
-            Log.error(Geonet.FORMATTER, "Error converting formatter output to a file: " + htmlContent, e);
-            throw e;
-        }
-    }
 
     @VisibleForTesting
     Pair<FormatterImpl, FormatterParams> loadMetadataAndCreateFormatterAndParams(ServiceContext context, Key key, final NativeWebRequest request) throws Exception {
