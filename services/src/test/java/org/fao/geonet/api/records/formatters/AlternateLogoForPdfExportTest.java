@@ -4,11 +4,13 @@ import jeeves.server.context.ServiceContext;
 import org.fao.geonet.domain.AbstractMetadata;
 import org.fao.geonet.domain.Metadata;
 import org.fao.geonet.domain.MetadataType;
+import org.fao.geonet.domain.Setting;
 import org.fao.geonet.kernel.SchemaManager;
 import org.fao.geonet.kernel.UpdateDatestamp;
 import org.fao.geonet.kernel.datamanager.IMetadataManager;
 import org.fao.geonet.kernel.search.IndexingMode;
 import org.fao.geonet.kernel.setting.SettingManager;
+import org.fao.geonet.repository.SettingRepository;
 import org.fao.geonet.repository.SourceRepository;
 import org.fao.geonet.schema.iso19115_3_2018.ISO19115_3_2018SchemaPlugin;
 import org.fao.geonet.schema.iso19139.ISO19139SchemaPlugin;
@@ -28,6 +30,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.Assert.assertFalse;
@@ -50,10 +53,17 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
     private FormatterApi formatService;
     @Autowired
     private SettingManager settingManager;
+    @Autowired
+    SettingRepository settingRepository;
 
     private ServiceContext context;
     private AbstractMetadata metadata;
     private static FormatterApi.ResponseWriter responseWriterSpy;
+
+    @Before
+    public void initSiteId() {
+        settingManager.setValue("system/site/siteId", UUID.randomUUID().toString());
+    }
 
     @Before
     public void createTestData() throws Exception {
@@ -104,7 +114,7 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
     }
 
     @Test
-    public void whenGeneratingPdfWithPropertySetTriggersValidContent() throws Exception {
+    public void whenGeneratingPdfWithPropertySetPdfLogoIsUsed() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
         MockHttpSession mockHttpSession = loginAsAdmin();
         settingManager.setValue("metadata/pdfReport/headerLogoFileName", "pdf_test_banner_to_use.png");
@@ -122,13 +132,36 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
     }
 
     @Test
-    public void whenNotGeneratingPdfWithPropertySetTriggersValidContent() throws Exception {
+    public void whenNotGeneratingPdfWithPropertySetSiteLogoIsUsed() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
         MockHttpSession mockHttpSession = loginAsAdmin();
         settingManager.setValue("metadata/pdfReport/headerLogoFileName", "pdf_test_banner_to_use.png");
         String siteId = settingManager.getValue("system/site/siteId");
 
         String url = "/srv/api/records/" + metadata.getUuid() + "/formatters/xsl-view?language=fre";
+        mockMvc.perform(get(url)
+                .session(mockHttpSession)
+                .accept(MediaType.ALL_VALUE))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
+        Mockito.verify(responseWriterSpy).writeOutResponse(any(ServiceContext.class), any(String.class), any(String.class), any(HttpServletResponse.class), any(FormatType.class), captor.capture());
+        assertFalse(new String(captor.getValue(), StandardCharsets.UTF_8).contains("pdf_test_banner_to_use.png"));
+        assertTrue(new String(captor.getValue(), StandardCharsets.UTF_8).contains("images/logos/" + siteId + ".png"));
+    }
+
+    @Test
+    public void whenGeneratingPdfWithPropertyNotSetSiteLogoIsUsed() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
+        MockHttpSession mockHttpSession = loginAsAdmin();
+        Optional<Setting> se = settingRepository.findById("metadata/pdfReport/headerLogoFileName");
+        if (!se.isPresent()) {
+            settingRepository.delete(se.get());
+        }
+        String siteId = settingManager.getValue("system/site/siteId");
+
+        String url = "/srv/api/records/" + metadata.getUuid() + "/formatters/xsl-view?output=pdf&language=fre";
         mockMvc.perform(get(url)
                 .session(mockHttpSession)
                 .accept(MediaType.ALL_VALUE))
