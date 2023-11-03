@@ -77,7 +77,7 @@
                     <a href="{$appUrl}">
                       <xsl:if test="not($isLogoInHeader)">
                         <xsl:choose>
-                          <xsl:when test="$output = 'pdf'">
+                          <xsl:when test="$output = 'pdf' and $env//metadata/pdfReport/headerLogoFileName != ''">
                             <img class="gn-logo"
                                  alt="{$i18n/siteLogo}"
                                  src="{/root/gui/nodeUrl}../images/harvesting/{$env//metadata/pdfReport/headerLogoFileName}"/>

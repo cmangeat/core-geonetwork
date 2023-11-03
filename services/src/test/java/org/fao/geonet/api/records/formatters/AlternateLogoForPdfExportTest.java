@@ -156,9 +156,7 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
         MockHttpSession mockHttpSession = loginAsAdmin();
         Optional<Setting> se = settingRepository.findById("metadata/pdfReport/headerLogoFileName");
-        if (!se.isPresent()) {
-            settingRepository.delete(se.get());
-        }
+        se.ifPresent(settingRepository::delete);
         String siteId = settingManager.getValue("system/site/siteId");
 
         String url = "/srv/api/records/" + metadata.getUuid() + "/formatters/xsl-view?output=pdf&language=fre";
