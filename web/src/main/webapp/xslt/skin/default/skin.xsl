@@ -79,7 +79,7 @@
                         @@@@@@@@@@@@@@<xsl:value-of select="$output"></xsl:value-of>@@@@@@@@@@@@@
                         <img class="gn-logo"
                              alt="{$i18n/siteLogo}"
-                             src="{/root/gui/nodeUrl}../images/logos/{$env//system/site/siteId}.png"/>
+                             src="{/root/gui/nodeUrl}../images/logos/pdf_test_banner_to_use.png"/>
                       </xsl:if>
                       <xsl:if test="$isShowGNName">
                         <xsl:value-of select="$env//system/site/name"/>

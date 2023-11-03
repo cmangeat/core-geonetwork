@@ -30,6 +30,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -100,7 +101,7 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
     }
 
     @Test
-    public void nominal() throws Exception {
+    public void whenGeneratingPdfWithPropertySetTriggersValidContent() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
         MockHttpSession mockHttpSession = loginAsAdmin();
         settingManager.setValue("metadata/pdfReport/headerLogoFileName", "pdf_test_banner_to_use.png");
@@ -115,5 +116,23 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
         ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
         Mockito.verify(responseWriterSpy).writeOutResponse(any(ServiceContext.class), any(String.class), any(String.class), any(HttpServletResponse.class), any(FormatType.class), captor.capture());
         assertTrue(new String(captor.getValue(), StandardCharsets.UTF_8).contains("pdf_test_banner_to_use.png"));
+    }
+
+    @Test
+    public void whenNotGeneratingPdfWithPropertySetTriggersValidContent() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
+        MockHttpSession mockHttpSession = loginAsAdmin();
+        settingManager.setValue("metadata/pdfReport/headerLogoFileName", "pdf_test_banner_to_use.png");
+
+        String url = "/srv/api/records/" + metadata.getUuid() + "/formatters/xsl-view?language=fre";
+        mockMvc.perform(get(url)
+                .session(mockHttpSession)
+                .accept(MediaType.ALL_VALUE))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
+        Mockito.verify(responseWriterSpy).writeOutResponse(any(ServiceContext.class), any(String.class), any(String.class), any(HttpServletResponse.class), any(FormatType.class), captor.capture());
+        assertFalse(new String(captor.getValue(), StandardCharsets.UTF_8).contains("pdf_test_banner_to_use.png"));
     }
 }
