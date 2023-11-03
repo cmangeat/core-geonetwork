@@ -53,7 +53,7 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
 
     private ServiceContext context;
     private AbstractMetadata metadata;
-    private FormatterApi.ResponseWriter responseWriterSpy;
+    private static FormatterApi.ResponseWriter responseWriterSpy;
 
     @Before
     public void createTestData() throws Exception {
@@ -64,8 +64,11 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
 
     @Before
     public void initWriterSpy() {
-        responseWriterSpy = Mockito.spy(formatService.writer);
-        formatService.writer = responseWriterSpy;
+        if (responseWriterSpy == null) {
+            responseWriterSpy = Mockito.spy(formatService.writer);
+            formatService.writer = responseWriterSpy;
+        }
+        Mockito.reset(responseWriterSpy);
     }
 
     private void loadFile(Element sampleMetadataXml) throws Exception {
@@ -115,7 +118,7 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
 
         ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
         Mockito.verify(responseWriterSpy).writeOutResponse(any(ServiceContext.class), any(String.class), any(String.class), any(HttpServletResponse.class), any(FormatType.class), captor.capture());
-        assertTrue(new String(captor.getValue(), StandardCharsets.UTF_8).contains("pdf_test_banner_to_use.png"));
+        assertTrue(new String(captor.getValue(), StandardCharsets.UTF_8).contains("images/harvesting/pdf_test_banner_to_use.png"));
     }
 
     @Test
@@ -123,6 +126,7 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
         MockHttpSession mockHttpSession = loginAsAdmin();
         settingManager.setValue("metadata/pdfReport/headerLogoFileName", "pdf_test_banner_to_use.png");
+        String siteId = settingManager.getValue("system/site/siteId");
 
         String url = "/srv/api/records/" + metadata.getUuid() + "/formatters/xsl-view?language=fre";
         mockMvc.perform(get(url)
@@ -134,5 +138,6 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
         ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
         Mockito.verify(responseWriterSpy).writeOutResponse(any(ServiceContext.class), any(String.class), any(String.class), any(HttpServletResponse.class), any(FormatType.class), captor.capture());
         assertFalse(new String(captor.getValue(), StandardCharsets.UTF_8).contains("pdf_test_banner_to_use.png"));
+        assertTrue(new String(captor.getValue(), StandardCharsets.UTF_8).contains("images/logos/" + siteId + ".png"));
     }
 }

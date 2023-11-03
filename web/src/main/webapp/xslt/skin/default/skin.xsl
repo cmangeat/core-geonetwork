@@ -76,10 +76,18 @@
                   <li>
                     <a href="{$appUrl}">
                       <xsl:if test="not($isLogoInHeader)">
-                        @@@@@@@@@@@@@@<xsl:value-of select="$output"></xsl:value-of>@@@@@@@@@@@@@
-                        <img class="gn-logo"
-                             alt="{$i18n/siteLogo}"
-                             src="{/root/gui/nodeUrl}../images/logos/pdf_test_banner_to_use.png"/>
+                        <xsl:choose>
+                          <xsl:when test="$output = 'pdf'">
+                            <img class="gn-logo"
+                                 alt="{$i18n/siteLogo}"
+                                 src="{/root/gui/nodeUrl}../images/harvesting/{$env//metadata/pdfReport/headerLogoFileName}"/>
+                          </xsl:when>
+                          <xsl:otherwise>
+                            <img class="gn-logo"
+                                 alt="{$i18n/siteLogo}"
+                                 src="{/root/gui/nodeUrl}../images/logos/{$env//system/site/siteId}.png  "/>
+                          </xsl:otherwise>
+                        </xsl:choose>
                       </xsl:if>
                       <xsl:if test="$isShowGNName">
                         <xsl:value-of select="$env//system/site/name"/>
