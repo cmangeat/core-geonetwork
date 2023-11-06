@@ -388,6 +388,10 @@ public abstract class AbstractCoreIntegrationTest extends AbstractSpringDataTest
     }
 
     protected AbstractMetadata injectMetadataInDbDoNotRefreshHeader(Element sampleMetadataXml, ServiceContext context) throws Exception {
+        return injectMetadataInDb(sampleMetadataXml, context, false);
+    }
+
+    protected AbstractMetadata injectMetadataInDb(Element sampleMetadataXml, ServiceContext context, boolean resfreshHeader) throws Exception {
         String uuid = UUID.randomUUID().toString();
         String schema = schemaManager.autodetectSchema(sampleMetadataXml);
         Xml.selectElement(sampleMetadataXml,
@@ -416,6 +420,6 @@ public abstract class AbstractCoreIntegrationTest extends AbstractSpringDataTest
             .setHarvested(false);
 
         return metadataManager.insertMetadata(context, metadata, sampleMetadataXml, IndexingMode.none, false, UpdateDatestamp.NO,
-            false, false);
+            false, resfreshHeader);
     }
 }
