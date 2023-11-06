@@ -26,7 +26,6 @@ package org.fao.geonet.api.records.formatters;
 import com.google.common.collect.Lists;
 import jeeves.config.springutil.JeevesDelegatingFilterProxy;
 import jeeves.server.context.ServiceContext;
-import org.fao.geonet.AbstractCoreIntegrationTest;
 import org.fao.geonet.MockRequestFactoryGeonet;
 import org.fao.geonet.SystemInfo;
 import org.fao.geonet.domain.Metadata;
@@ -36,16 +35,11 @@ import org.fao.geonet.kernel.GeonetworkDataDirectory;
 import org.fao.geonet.kernel.SchemaManager;
 import org.fao.geonet.kernel.UpdateDatestamp;
 import org.fao.geonet.kernel.search.IndexingMode;
-import org.fao.geonet.languages.IsoLanguagesMapper;
-import org.fao.geonet.repository.MetadataRepository;
 import org.fao.geonet.repository.SourceRepository;
-import org.fao.geonet.schema.iso19139.ISO19139Namespaces;
 import org.fao.geonet.services.AbstractServiceIntegrationTest;
 import org.fao.geonet.utils.IO;
-import org.fao.geonet.utils.MockXmlRequest;
 import org.fao.geonet.utils.Xml;
 import org.jdom.Element;
-import org.jdom.Namespace;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -88,13 +82,9 @@ public class FormatterApiIntegrationTest extends AbstractServiceIntegrationTest 
     @Autowired
     private FormatterAdminApi listService;
     @Autowired
-    private IsoLanguagesMapper mapper;
-    @Autowired
     private SourceRepository sourceRepository;
     @Autowired
     private DataManager dataManager;
-    @Autowired
-    private MetadataRepository metadataRepository;
     private ServiceContext serviceContext;
     private int id;
     private String schema;
