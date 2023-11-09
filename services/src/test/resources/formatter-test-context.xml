@@ -35,6 +35,10 @@
     <constructor-arg index="0" value="eng"/>
   </bean>
 
+  <bean id="PdfOrHtmlResponseWriter" class="org.mockito.Mockito" factory-method="mock" primary="true">
+    <constructor-arg value="org.fao.geonet.api.records.formatters.PdfOrHtmlResponseWriter" />
+  </bean>
+
   <util:set id="formatterRemoteFormatAllowedHosts" value-type="java.lang.String">
     <value>FormatIntegrationTest.com</value>
   </util:set>

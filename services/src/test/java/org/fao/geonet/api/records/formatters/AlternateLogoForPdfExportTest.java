@@ -13,6 +13,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -28,20 +29,20 @@ import static org.mockito.Matchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ContextConfiguration(locations = "classpath:formatter-test-context.xml")
 public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTest {
 
     @Autowired
     private WebApplicationContext wac;
     @Autowired
-    private FormatterApi formatService;
-    @Autowired
     private SettingManager settingManager;
     @Autowired
     SettingRepository settingRepository;
+    @Autowired
+    private PdfOrHtmlResponseWriter responseWriterSpy;
 
     private ServiceContext context;
     private AbstractMetadata metadata;
-    private static FormatterApi.ResponseWriter responseWriterSpy;
 
     @Before
     public void initSiteId() {
@@ -57,10 +58,6 @@ public class AlternateLogoForPdfExportTest extends AbstractServiceIntegrationTes
 
     @Before
     public void initWriterSpy() {
-        if (responseWriterSpy == null) {
-            responseWriterSpy = Mockito.spy(formatService.writer);
-            formatService.writer = responseWriterSpy;
-        }
         Mockito.reset(responseWriterSpy);
     }
 
